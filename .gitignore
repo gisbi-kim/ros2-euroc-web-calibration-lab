@@ -1,0 +1,19 @@
+# Runtime outputs
+saved/
+logs/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+
+# Large downloaded ROS2 bags
+external/euroc/
+
+# LaTeX build artifacts
+slides/*.aux
+slides/*.log
+slides/*.nav
+slides/*.out
+slides/*.snm
+slides/*.toc
+slides/*.vrb

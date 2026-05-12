@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EuRoC ROS2 Calibration Lab</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Advanced Mobility Lab</p>
+          <h1>ROS2 EuRoC Web Calibration Demo</h1>
+          <p class="subtitle">
+            Replay a ROS2 camera bag, capture a frame in the browser, and apply camera calibration to undistort it.
+          </p>
+        </div>
+        <div class="status-card">
+          <span id="statusDot" class="dot dot-wait"></span>
+          <div>
+            <strong id="statusText">Waiting for frames</strong>
+            <span id="statusSubtext">/cam0/image_raw</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="panel bag-panel">
+        <div class="panel-title-row">
+          <div>
+            <h2>1. ROS2 Bag Playback</h2>
+            <p class="hint" id="bagSummary">Waiting for bag status...</p>
+          </div>
+          <div class="bag-actions">
+            <button id="bagRestartBtn" class="secondary" type="button">Restart from Beginning</button>
+            <button id="bagSeekBtn" class="primary" type="button">Start from Selected Position</button>
+          </div>
+        </div>
+        <div class="bag-progress-row">
+          <div class="bag-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span id="bagProgressFill"></span>
+          </div>
+          <strong id="bagProgressText">0.00 / 0.00 s</strong>
+        </div>
+        <div class="bag-controls">
+          <label>
+            <span>Start offset</span>
+            <input id="bagSeekSlider" type="range" min="0" max="1000" value="0" />
+          </label>
+          <label class="seconds-input">
+            <span>Seconds</span>
+            <input id="bagSeekSec" type="text" inputmode="decimal" value="0" />
+          </label>
+        </div>
+        <div class="metrics">
+          <span>State: <strong id="bagState">unknown</strong></span>
+          <span>Rate: <strong id="bagRate">-</strong></span>
+          <span>Loop: <strong id="bagLoop">-</strong></span>
+          <span>Image messages: <strong id="bagMessages">-</strong></span>
+        </div>
+      </section>
+
+      <section class="grid two-cols">
+        <article class="panel">
+          <div class="panel-title-row">
+            <h2>2. Live ROS2 Image Stream</h2>
+            <button id="captureBtn" class="primary">Capture Current Frame</button>
+          </div>
+          <div class="image-shell live-shell">
+            <img id="liveStream" src="/stream.mjpg" alt="Live ROS2 camera stream" />
+          </div>
+          <div class="metrics">
+            <span>Topic: <strong id="topicName">/cam0/image_raw</strong></span>
+            <span>Encoding: <strong id="encodingName">-</strong></span>
+            <span>Display: <strong id="displayMode">-</strong></span>
+            <span>Frames: <strong id="frameCount">0</strong></span>
+            <span>ROS timestamp: <strong id="rosTimestamp">-</strong></span>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>3. Captured Frames</h2>
+          <p class="hint">Keep the latest six frames for the calibration exercise.</p>
+          <div id="gallery" class="gallery empty">No captured frames yet.</div>
+        </article>
+      </section>
+
+      <section class="panel comparison-panel">
+        <div class="panel-title-row">
+          <div>
+            <h2>4. Raw vs Undistorted Comparison</h2>
+            <p class="hint" id="selectedHint">Capture a frame to begin.</p>
+          </div>
+          <button id="undistortBtn" class="secondary" disabled>Apply Calibration / Undistort</button>
+        </div>
+        <div class="compare-grid">
+          <div>
+            <h3>Captured raw image</h3>
+            <div class="image-shell compare-shell"><img id="rawImage" alt="Captured raw image" /></div>
+          </div>
+          <div>
+            <h3>Undistorted image</h3>
+            <div class="image-shell compare-shell"><img id="undistortedImage" alt="Undistorted image" /></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid two-cols">
+        <article class="panel formula-panel">
+          <h2>5. Calibration Equation</h2>
+          <p>
+            Normalized point: <code>x = X/Z</code>, <code>y = Y/Z</code>, <code>r² = x² + y²</code>
+          </p>
+          <pre><code>x_d = x(1 + k1 r² + k2 r⁴ + k3 r⁶) + 2 p1 x y + p2(r² + 2x²)
+y_d = y(1 + k1 r² + k2 r⁴ + k3 r⁶) + p1(r² + 2y²) + 2 p2 x y
+u_d = fx x_d + cx,   v_d = fy y_d + cy</code></pre>
+          <p>
+            The button computes a remapping table and samples the raw image so that straight camera rays become straight image geometry.
+          </p>
+        </article>
+
+        <article class="panel">
+          <h2>6. Current Calibration Metadata</h2>
+          <pre id="calibrationBlock" class="metadata">Waiting for calibration metadata...</pre>
+        </article>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

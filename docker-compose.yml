@@ -1,0 +1,22 @@
+services:
+  ros2-web-lab:
+    build:
+      context: .
+    image: euroc-ros2-web-calib-lab:jazzy
+    container_name: euroc-ros2-web-calib-lab
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    environment:
+      BAG_PATH: ${BAG_PATH:-/external/euroc/MH_01_easy_ros2_ready}
+      SAVED_DIR: /data/saved
+      BAG_RATE: ${BAG_RATE:-0.5}
+      BAG_AUTO_DOWNLOAD: ${BAG_AUTO_DOWNLOAD:-1}
+      BAG_DRIVE_URL: ${BAG_DRIVE_URL:-https://drive.google.com/drive/folders/1IGENwyRNQZgeNes16DeYKq9V2stf7NzN?usp=sharing}
+      IMAGE_TOPIC: /cam0/image_raw
+      CAMERA_INFO_TOPIC: /cam0/camera_info
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-42}
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    volumes:
+      - ./saved:/data/saved
+      - ./external/euroc:/external/euroc
+    command: ["demo"]

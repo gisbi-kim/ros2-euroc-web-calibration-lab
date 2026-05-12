@@ -1,0 +1,531 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+\usefonttheme{professionalfonts}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\definecolor{labblue}{RGB}{31,92,145}
+\definecolor{labgreen}{RGB}{33,128,91}
+\definecolor{labgray}{RGB}{70,76,86}
+\definecolor{codebg}{RGB}{245,247,250}
+
+\setbeamercolor{title}{fg=labblue}
+\setbeamercolor{frametitle}{fg=labblue}
+\setbeamercolor{block title}{bg=labblue,fg=white}
+\setbeamercolor{block body}{bg=blue!3,fg=black}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \hbox{%
+    \begin{beamercolorbox}[wd=.72\paperwidth,ht=2.4ex,dp=1ex,leftskip=1.5em]{author in head/foot}%
+      Advanced Mobility Lab - ROS2 EuRoC Calibration Demo
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.28\paperwidth,ht=2.4ex,dp=1ex,rightskip=1.5em plus1fil]{date in head/foot}%
+      \hfill\insertframenumber/\inserttotalframenumber
+    \end{beamercolorbox}%
+  }%
+}
+
+\lstdefinestyle{labcode}{
+  basicstyle=\ttfamily\scriptsize,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{black!15},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false
+}
+\lstset{style=labcode}
+
+\newcommand{\source}[1]{\vspace{0.25em}{\tiny\color{labgray}Source: #1}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title[ROS2 EuRoC Calibration Lab]{Dockerized ROS2 EuRoC Web Calibration Lab}
+\subtitle{Part 1: Docker and ROS2 essentials - Part 2: Image capture and undistortion}
+\author{Advanced Mobility Course}
+\date{50-minute hands-on session}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+  \vspace{-1.0em}
+  \begin{block}{Lab deliverable}
+    Replay a ROS2 camera bag, view the camera stream in a browser, capture a frame, and apply calibration to produce an undistorted comparison image.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Why this lab follows the calibration lecture}
+  \begin{columns}[T,totalwidth=\textwidth]
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Monday}
+        Camera calibration estimates numerical parameters:
+        \begin{itemize}
+          \item intrinsic matrix $K$
+          \item distortion coefficients $D$
+          \item camera geometry model
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{Wednesday}
+        We use those parameters in a robotics pipeline:
+        \begin{itemize}
+          \item ROS2 camera topic
+          \item web visualization
+          \item frame capture
+          \item undistortion by remapping
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.6em}
+  \centering
+  \large Calibration becomes an operator on image streams, not just a table of numbers.
+\end{frame}
+
+\begin{frame}{50-minute session map}
+  \begin{tabularx}{\textwidth}{@{}l l X X@{}}
+    \toprule
+    Part & Time & Main question & Student output \\
+    \midrule
+    1 & 25 min & How do Docker and ROS2 make the lab reproducible? & Running container, ROS2 topics, bag replay \\
+    2 & 25 min & How does calibration change the image stream? & Raw/undistorted image pair with metadata \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{1.0em}
+  \begin{block}{Success criterion}
+    The browser displays the camera stream at \code{localhost:8080}; a captured raw frame and its undistorted result are saved side by side.
+  \end{block}
+\end{frame}
+
+\section{Part 1 - Docker and ROS2 essentials}
+
+\begin{frame}{Part 1 learning objectives}
+  By the end of Part 1, students should be able to explain:
+  \begin{enumerate}
+    \item why Docker is useful for robotics software labs;
+    \item what image, container, volume, port, and Compose mean;
+    \item how ROS2 represents a robot system as a graph;
+    \item how to inspect camera topics with ROS2 CLI commands;
+    \item how \code{ros2 bag play} replays sensor logs.
+  \end{enumerate}
+  \vspace{0.5em}
+  \begin{alertblock}{Scope control}
+    Do not teach full Docker administration or full ROS2 package development here. Teach only what is needed to run and debug the lab.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}[fragile]{Codex prompt for Docker installation}
+  Use this prompt before students touch ROS2 locally.
+  \begin{lstlisting}
+You are helping me prepare a ROS2 Jazzy Docker-based lab environment.
+
+Task:
+1. Check whether Docker Desktop or Docker Engine is installed on my OS.
+2. If not installed, guide me to install Docker using official Docker documentation only.
+3. Verify Docker with:
+   docker --version
+   docker run hello-world
+4. Do not install ROS2 directly on my host machine.
+5. The final goal is to run a Docker Compose project for a ROS2 Jazzy EuRoC camera-streaming lab.
+
+Constraints:
+- Use official Docker documentation links.
+- Do not use random blog posts.
+- Stop and ask before making destructive system-level changes.
+  \end{lstlisting}
+\end{frame}
+
+\begin{frame}{Official installation links}
+  \begin{block}{Docker}
+    Docker Desktop is the recommended install path for most student laptops.
+    \begin{itemize}
+      \item Overview: \href{https://docs.docker.com/desktop/}{docs.docker.com/desktop}
+      \item Get Docker Desktop: \href{https://docs.docker.com/get-started/introduction/get-docker-desktop/}{docs.docker.com/get-started}
+      \item Windows: \href{https://docs.docker.com/desktop/setup/install/windows-install/}{Windows install guide}
+      \item Mac: \href{https://docs.docker.com/desktop/setup/install/mac-install/}{Mac install guide}
+      \item Ubuntu: \href{https://docs.docker.com/desktop/setup/install/linux/ubuntu/}{Ubuntu install guide}
+    \end{itemize}
+  \end{block}
+  \begin{block}{ROS2}
+    Use ROS2 Jazzy in the container. Jazzy was released on May 23, 2024 and has EOL in May 2029.
+  \end{block}
+  \source{Docker Desktop docs; ROS2 Jazzy distribution page}
+\end{frame}
+
+\begin{frame}{Docker mental model for robotics labs}
+  \begin{tabularx}{\textwidth}{@{}l X X@{}}
+    \toprule
+    Concept & Plain meaning & Role in this lab \\
+    \midrule
+    Image & Read-only environment template & ROS2 Jazzy, Python, OpenCV, web app \\
+    Container & Running process created from an image & The active lab machine \\
+    Volume & Host-container shared folder & Saved raw and undistorted images \\
+    Port & Network exposure from container to host & Browser opens \code{localhost:8080} \\
+    Compose & Single file to run the stack & Build, run, and configure the demo \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.7em}
+  \begin{block}{One sentence}
+    Docker turns ``it worked on my laptop'' into a controlled experiment environment.
+  \end{block}
+\end{frame}
+
+\begin{frame}[fragile]{Minimal Docker commands}
+  \begin{lstlisting}
+# Build and start the full demo
+docker compose up --build
+
+# Stop containers
+docker compose down
+
+# Show runtime logs
+docker compose logs -f
+
+# Enter the ROS2 shell inside the container
+docker compose run --rm ros2-web-lab shell
+  \end{lstlisting}
+  \vspace{0.8em}
+  \begin{block}{Debug rule}
+    If the browser does not show images, first inspect Compose logs, then inspect ROS2 topics from inside the container.
+  \end{block}
+\end{frame}
+
+\begin{frame}{ROS2 graph for this lab}
+  \begin{block}{Data flow}
+    \begin{center}
+      \ttfamily
+      ros2 bag play $\rightarrow$ /cam0/image\_raw, /cam0/camera\_info $\rightarrow$ web\_bridge\_node $\rightarrow$ browser UI
+    \end{center}
+  \end{block}
+  \begin{tabularx}{\textwidth}{@{}l X@{}}
+    \toprule
+    ROS2 element & In this lab \\
+    \midrule
+    Node & Bag player and image web bridge \\
+    Topic & \code{/cam0/image\_raw}, \code{/cam0/camera\_info} \\
+    Message & \code{sensor\_msgs/msg/Image}, \code{sensor\_msgs/msg/CameraInfo} \\
+    QoS & Sensor stream policy for latency and frame drops \\
+    Bag & Replayable sensor log for reproducible experiments \\
+    \bottomrule
+  \end{tabularx}
+\end{frame}
+
+\begin{frame}[fragile]{ROS2 CLI checklist}
+  \begin{lstlisting}
+# Inside the container
+source /opt/ros/jazzy/setup.bash
+source /ros2_ws/install/setup.bash
+
+ros2 topic list
+ros2 topic info /cam0/image_raw
+ros2 topic info /cam0/camera_info
+ros2 topic hz /cam0/image_raw
+ros2 bag info /external/euroc/MH_01_easy_ros2_ready
+  \end{lstlisting}
+  \vspace{0.8em}
+  \begin{block}{What students should observe}
+    The image topic and camera-info topic are published by the bag player, then consumed by the web bridge.
+  \end{block}
+\end{frame}
+
+\begin{frame}[fragile]{Replay the sensor log}
+  \begin{lstlisting}
+ros2 bag play /external/euroc/MH_01_easy_ros2_ready --loop --rate 0.5
+  \end{lstlisting}
+  \vspace{0.8em}
+  \begin{tabularx}{\textwidth}{@{}l X@{}}
+    \toprule
+    Option & Meaning \\
+    \midrule
+    \code{/data/euroc\_mh01\_subset} & ROS2 bag path inside the container \\
+    \code{--loop} & Replay repeatedly for classroom interaction \\
+    \code{--rate 0.5} & Slow down playback so students can capture frames \\
+    \bottomrule
+  \end{tabularx}
+  \source{ROS2 bag tutorial}
+\end{frame}
+
+\begin{frame}{Part 1 checkpoint}
+  \begin{block}{Students pass Part 1 if they can show three things}
+    \begin{enumerate}
+      \item \code{ros2 topic list} includes \code{/cam0/image\_raw};
+      \item \code{ros2 topic hz /cam0/image\_raw} reports a live stream;
+      \item \code{http://localhost:8080} displays the image stream.
+    \end{enumerate}
+  \end{block}
+  \vspace{0.8em}
+  \begin{alertblock}{Transition question}
+    If \code{/cam0/image\_raw} is only pixel data, what extra information is needed to undistort it?
+  \end{alertblock}
+\end{frame}
+
+\section{Part 2 - Image capture and undistortion}
+
+\begin{frame}{Part 2 learning objectives}
+  By the end of Part 2, students should be able to explain:
+  \begin{enumerate}
+    \item what the EuRoC MAV dataset provides;
+    \item why image frames should be stored with calibration metadata;
+    \item how a browser can subscribe indirectly to ROS2 data;
+    \item how radial-tangential distortion maps normalized points;
+    \item why undistortion is usually implemented as image remapping.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{EuRoC MAV dataset in one slide}
+  \begin{block}{Dataset role}
+    EuRoC contains visual-inertial data collected onboard a micro aerial vehicle. For this lab, we use only the cam0 image stream and calibration parameters.
+  \end{block}
+  \begin{tabularx}{\textwidth}{@{}l X@{}}
+    \toprule
+    Data type & Why it matters \\
+    \midrule
+    Stereo images & Camera stream for visual odometry and calibration demos \\
+    IMU measurements & Future extension to visual-inertial odometry \\
+    Ground truth & Future extension to trajectory evaluation \\
+    Camera calibration & Intrinsics and distortion used today \\
+    Camera-IMU extrinsics & Future extension to sensor fusion \\
+    \bottomrule
+  \end{tabularx}
+  \source{ETH ASL EuRoC MAV dataset page and ETH Research Collection}
+\end{frame}
+
+\begin{frame}{Dataset preparation strategy}
+  \begin{tabularx}{\textwidth}{@{}l X X@{}}
+    \toprule
+    Mode & What happens & When to use \\
+    \midrule
+    Class bag & Play \code{MH\_01\_easy\_ros2\_ready} directly & Live class reliability \\
+    Camera stream & Read \code{/cam0/image\_raw} from the bag & Browser streaming \\
+    Calibration & Read \code{/cam0/camera\_info} from the bag & Undistortion metadata \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.8em}
+  \begin{alertblock}{Classroom recommendation}
+    Use the prepared ROS2 bag for live teaching. Do not download or prepare datasets during class.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Web demo architecture}
+  \begin{block}{Runtime pipeline}
+    \begin{center}
+      \ttfamily
+      ROS2 bag $\rightarrow$ camera topics $\rightarrow$ FastAPI bridge $\rightarrow$ MJPEG stream $\rightarrow$ browser
+    \end{center}
+  \end{block}
+  \begin{block}{Saved experiment sample}
+    A capture is not only an image. It is:
+    \begin{center}
+      \code{raw image + timestamp + topic + K + D + distortion model}
+    \end{center}
+  \end{block}
+  \begin{block}{Undistortion service}
+    The browser calls an HTTP endpoint; the backend loads the raw image and metadata, applies OpenCV remapping, then saves the corrected image.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Why CameraInfo matters}
+  \begin{tabularx}{\textwidth}{@{}l X@{}}
+    \toprule
+    Topic & Meaning \\
+    \midrule
+    \code{/cam0/image\_raw} & Distorted raw intensity image \\
+    \code{/cam0/camera\_info} & Camera matrix, distortion coefficients, rectification, projection \\
+    \code{/cam0/image\_rect} & Rectified or undistorted image, if another node produces it \\
+    \bottomrule
+  \end{tabularx}
+  \vspace{0.8em}
+  \begin{block}{Key point}
+    Pixel values alone do not define the camera geometry. Calibration metadata is needed to map pixels back to camera rays.
+  \end{block}
+  \source{ROS2 sensor\_msgs/CameraInfo documentation}
+\end{frame}
+
+\begin{frame}{User capture routine}
+  \begin{enumerate}
+    \item The browser displays the live stream.
+    \item The student clicks \textbf{Capture Current Frame}.
+    \item Backend copies the latest ROS2 frame buffer.
+    \item Raw image is saved as \code{saved/raw/frame\_XXXXXX.png}.
+    \item Metadata is saved as \code{saved/metadata/frame\_XXXXXX.json}.
+    \item Thumbnail appears in the gallery.
+  \end{enumerate}
+  \vspace{0.7em}
+  \begin{block}{Student mission}
+    Capture a frame with straight structures near the image boundary. Boundary regions make distortion effects easier to see.
+  \end{block}
+\end{frame}
+
+\begin{frame}[fragile]{Saved metadata example}
+  \begin{lstlisting}
+{
+  "image_id": "frame_000012",
+  "topic": "/cam0/image_raw",
+  "timestamp_ros_ns": 1403636579763555584,
+  "encoding": "mono8",
+  "width": 752,
+  "height": 480,
+  "camera": "cam0",
+  "K": [[458.654, 0.0, 367.215],
+        [0.0, 457.296, 248.375],
+        [0.0, 0.0, 1.0]],
+  "D": [-0.28340811, 0.07395907, 0.00019259, 0.00000910, 0.0],
+  "distortion_model": "plumb_bob"
+}
+  \end{lstlisting}
+\end{frame}
+
+\begin{frame}{Pinhole projection}
+  A 3D point in the camera coordinate frame is
+  \[
+    \mathbf{X}_c = \begin{bmatrix} X \\ Y \\ Z \end{bmatrix}.
+  \]
+  Normalized image coordinates are
+  \[
+    x = \frac{X}{Z}, \qquad y = \frac{Y}{Z}, \qquad r^2 = x^2 + y^2.
+  \]
+  With intrinsic matrix
+  \[
+    K = \begin{bmatrix}
+      f_x & 0 & c_x \\
+      0 & f_y & c_y \\
+      0 & 0 & 1
+    \end{bmatrix},
+  \]
+  ideal pixel coordinates are $u = f_x x + c_x$ and $v = f_y y + c_y$.
+\end{frame}
+
+\begin{frame}{Radial and tangential distortion}
+  Radial distortion:
+  \[
+    x_r = x(1 + k_1 r^2 + k_2 r^4 + k_3 r^6),
+    \qquad
+    y_r = y(1 + k_1 r^2 + k_2 r^4 + k_3 r^6).
+  \]
+  Tangential distortion:
+  \[
+    x_t = 2p_1xy + p_2(r^2 + 2x^2),
+  \]
+  \[
+    y_t = p_1(r^2 + 2y^2) + 2p_2xy.
+  \]
+  Distorted normalized coordinates:
+  \[
+    x_d = x_r + x_t, \qquad y_d = y_r + y_t.
+  \]
+  Distorted pixel coordinates:
+  \[
+    u_d = f_x x_d + c_x, \qquad v_d = f_y y_d + c_y.
+  \]
+\end{frame}
+
+\begin{frame}{Undistortion as inverse mapping}
+  We observe distorted pixels $(u_d, v_d)$ and want ideal pixels $(u, v)$.
+  \vspace{0.5em}
+  \begin{block}{Practical implementation}
+    Instead of solving a closed-form inverse for every point, compute a remapping table:
+    \[
+      I_{\mathrm{undist}}(u,v) = I_{\mathrm{raw}}\big(\mathrm{map}_x(u,v),\mathrm{map}_y(u,v)\big).
+    \]
+  \end{block}
+  \vspace{0.3em}
+  \begin{block}{OpenCV routine}
+    \code{initUndistortRectifyMap} builds the map; \code{remap} samples the raw image.
+  \end{block}
+  \source{OpenCV camera calibration documentation}
+\end{frame}
+
+\begin{frame}[fragile]{Undistortion code path}
+  \begin{lstlisting}
+metadata = load_json("saved/metadata/frame_000012.json")
+raw = cv2.imread("saved/raw/frame_000012.png", cv2.IMREAD_UNCHANGED)
+
+K = np.array(metadata["K"], dtype=np.float64)
+D = np.array(metadata["D"], dtype=np.float64)
+
+new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, image_size, 0.0, image_size)
+map_x, map_y = cv2.initUndistortRectifyMap(
+    K, D, None, new_K, image_size, cv2.CV_32FC1
+)
+undistorted = cv2.remap(raw, map_x, map_y, interpolation=cv2.INTER_LINEAR)
+  \end{lstlisting}
+\end{frame}
+
+\begin{frame}{Browser UI workflow}
+  \begin{enumerate}
+    \item Watch the live ROS2 image stream.
+    \item Capture a frame with clear boundary structures.
+    \item Inspect raw image and metadata.
+    \item Click \textbf{Apply Calibration / Undistort}.
+    \item Compare raw and undistorted images side by side.
+  \end{enumerate}
+  \vspace{0.8em}
+  \begin{block}{Instructor prompt}
+    Ask students where the geometric change is largest. They should look near the image boundary, not only the center.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Failure recovery plan}
+  \begin{tabularx}{\textwidth}{@{}l X@{}}
+    \toprule
+    Problem & Recovery \\
+    \midrule
+    Docker missing & Use official Docker installation docs and Codex prompt \\
+    ROS2 bag path missing & Check \code{.env} and the \code{external/euroc/MH\_01\_easy\_ros2\_ready} folder \\
+    Browser shows no frames & Inspect \code{docker compose logs -f} and \code{ros2 topic list} \\
+    Capture fails & Wait for first frame, then refresh browser \\
+    Undistortion looks wrong & Check coefficient order: \code{[k1,k2,p1,p2,k3]} \\
+    Port conflict & Run with \code{WEB\_PORT=8081 docker compose up --build} \\
+    \bottomrule
+  \end{tabularx}
+\end{frame}
+
+\begin{frame}{Discussion questions}
+  \begin{enumerate}
+    \item Why is \code{/cam0/camera\_info} as important as \code{/cam0/image\_raw}?
+    \item Why might undistortion crop or warp the image boundary?
+    \item Why is \code{ros2 bag play} useful for reproducible robotics experiments?
+    \item What changes if this demo is extended to stereo rectification?
+    \item What changes if this demo is extended to visual-inertial odometry?
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{Wrap-up}
+  \begin{block}{Part 1}
+    Docker makes the robotics environment reproducible; ROS2 topics and bags make the sensor data stream inspectable and replayable.
+  \end{block}
+  \begin{block}{Part 2}
+    Calibration parameters become an active image operator: raw distorted frames are remapped into undistorted frames.
+  \end{block}
+  \begin{alertblock}{Take-home message}
+    In robotics, calibration is not a one-time report. It is part of the runtime data pipeline.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{References}
+  \scriptsize
+  \begin{itemize}
+    \item Docker Desktop documentation: \href{https://docs.docker.com/desktop/}{https://docs.docker.com/desktop/}
+    \item ROS2 distributions: \href{https://docs.ros.org/en/jazzy/Releases.html}{https://docs.ros.org/en/jazzy/Releases.html}
+    \item ROS2 bag tutorial: \href{https://docs.ros.org/en/rolling/Tutorials/Beginner-CLI-Tools/Recording-And-Playing-Back-Data/Recording-And-Playing-Back-Data.html}{ROS2 bag tutorial}
+    \item ROS2 CameraInfo message: \href{https://docs.ros.org/en/jazzy/p/sensor_msgs/msg/CameraInfo.html}{sensor\_msgs/CameraInfo}
+    \item EuRoC MAV dataset: \href{https://projects.asl.ethz.ch/datasets/euroc-mav/}{https://projects.asl.ethz.ch/datasets/euroc-mav/}
+    \item ETH Research Collection EuRoC landing page: \href{https://doi.org/10.3929/ethz-b-000690084}{https://doi.org/10.3929/ethz-b-000690084}
+    \item OpenCV camera calibration: \href{https://docs.opencv.org/3.4/d4/d94/tutorial_camera_calibration.html}{OpenCV camera calibration}
+  \end{itemize}
+\end{frame}
+
+\end{document}
