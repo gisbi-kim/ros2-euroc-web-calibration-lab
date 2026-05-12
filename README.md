@@ -52,6 +52,12 @@ http://localhost:8080
 
 The web bridge manages `ros2 bag play`, streams `/cam0/image_raw`, reads calibration from `/cam0/camera_info`, lets the user capture frames, and applies undistortion.
 
+## Example Web Lab Screen
+
+The browser shows ROS2 bag playback progress, the live `/cam0/image_raw` stream, the latest captured frames, and a raw-vs-undistorted comparison after calibration is applied.
+
+![ROS2 EuRoC web calibration lab showing live stream, captured frames, and undistorted comparison](docs/images/web-lab-capture-undistort-example.png)
+
 ## Student Workflow
 
 1. Watch the ROS2 bag playback status at the top of the page.
